@@ -202,3 +202,23 @@ main{display:grid; grid-template-columns:minmax(300px,360px) 1fr; gap:20px; padd
   .stamp{position:static; display:inline-block; margin-bottom:16px; transform:rotate(-6deg) scale(1); opacity:.93}
   .stamp.slam{animation:none}
 }
+
+/* ---------- IMPORT ---------- */
+.import-row{padding:12px 18px; border-bottom:1px solid var(--line)}
+.import-btn{display:block; text-align:center; width:100%}
+.import-status{font-family:var(--mono); font-size:10.5px; color:var(--parchment-dim); margin-top:8px; line-height:1.5}
+.import-status.err{color:#e88b86}
+.import-status.ok{color:#7fd6a0}
+
+/* ---------- RECORD ---------- */
+.record-section{max-width:1500px; margin:0 auto 26px; padding-bottom:22px}
+.record-summary{padding:16px 26px 4px; font-size:14px; line-height:1.7; color:var(--parchment-dim); font-family:var(--serif)}
+.record-summary strong{color:var(--brass); font-weight:700}
+.record-summary .worst{font-style:italic; font-size:13px}
+.charts{display:grid; grid-template-columns:1fr 1fr; gap:22px; padding:14px 26px 0}
+.chart-box h3{font-size:10.5px; text-transform:uppercase; letter-spacing:.16em; color:var(--brass); margin-bottom:14px}
+.chart-holder{height:230px; position:relative}
+@media (max-width:960px){ .charts{grid-template-columns:1fr} }
+
+/* ---------- MASS SENTENCING ---------- */
+.gavel-flash{position:fixed; inset:0; background:rgba(192,42,36,.16); pointer-events:none; z-index:30; opacity:0}

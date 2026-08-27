@@ -9,6 +9,10 @@ import { DEMO_DOCKET } from './data.js';
 import { buildCase, classify, money } from './culpability.js';
 import { composeIndictment, analyzePlea, deliverVerdict } from './prosecutor.js';
 import * as AI from './ai.js';
+import { parseStatement } from './import.js';
+import { renderRecord as renderCriminalRecord } from './record.js';
+import confetti from 'canvas-confetti';
+import { gsap } from 'gsap';
 
 const STORE_KEY = 'receipt-court:docket';
 const $ = (id) => document.getElementById(id);
@@ -135,6 +139,7 @@ function renderDocket() {
   list.querySelectorAll('.docket-item').forEach((el) =>
     el.addEventListener('click', () => openCase(el.dataset.id)));
   renderRecord();
+  renderCriminalRecord(state.cases);
 }
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (m) =>
@@ -258,6 +263,18 @@ async function enterPlea(text) {
     $('verdict-card').classList.add('shake');
     gavel(judgment.convicted ? 1 : 0.75);
     setTimeout(() => $('verdict-card').classList.remove('shake'), 500);
+
+    // Sentence terms drop in one at a time, like they're being read aloud.
+    gsap.from('#sentence-list li', {
+      opacity: 0, y: 14, duration: 0.42, stagger: 0.13, delay: 0.28, ease: 'power2.out',
+    });
+    gsap.from('#verdict-remark', { opacity: 0, duration: 0.5, delay: 0.7 });
+
+    // Acquittal is rare enough to deserve a celebration.
+    if (!judgment.convicted) {
+      confetti({ particleCount: 90, spread: 72, origin: { y: 0.62 },
+        colors: ['#c8a24a', '#efe3cc', '#4f9464'], disableForReducedMotion: true });
+    }
   });
 
   const rec = state.cases.find((c) => c.id === state.activeId);
@@ -317,6 +334,76 @@ $('btn-purge').addEventListener('click', () => {
   renderDocket();
 });
 
+$('in-csv').addEventListener('change', async (e) => {
+  const file = e.target.files?.[0];
+  const status = $('import-status');
+  if (!file) return;
+  status.className = 'import-status';
+  status.textContent = 'Reading statement…';
+  try {
+    const { charges, skipped, columns, error } = parseStatement(await file.text());
+    if (error || !charges.length) {
+      status.className = 'import-status err';
+      status.textContent = error || 'No chargeable transactions found.';
+      return;
+    }
+    for (const c of charges) fileCharge(c.merchant, c.amount, c.date);
+    status.className = 'import-status ok';
+    status.textContent = `${charges.length} charges filed from "${columns.descCol}" / "${columns.amountCol}". ${skipped} rows dismissed as income.`;
+    renderDocket();
+    const first = state.cases.find((c) => !c.resolved);
+    if (first) openCase(first.id);
+  } catch (err) {
+    status.className = 'import-status err';
+    status.textContent = 'Could not read that file: ' + err.message;
+  } finally {
+    e.target.value = '';
+  }
+});
+
+/**
+ * Mass sentencing. The defendant waives their right to plead on every
+ * outstanding charge, and the court disposes of the docket at speed.
+ */
+$('btn-tryall').addEventListener('click', async () => {
+  const pending = state.cases.filter((c) => !c.resolved);
+  if (!pending.length) return alert('The docket is already clear.');
+  if (!confirm(`Mass sentencing waives your right to plead on ${pending.length} outstanding ${pending.length === 1 ? 'charge' : 'charges'}. The court will rule on the evidence alone. Proceed?`)) return;
+
+  const btn = $('btn-tryall');
+  btn.disabled = true;
+  const flash = document.createElement('div');
+  flash.className = 'gavel-flash';
+  document.body.appendChild(flash);
+
+  for (let i = 0; i < pending.length; i++) {
+    const rec = pending[i];
+    const caseFile = buildCase(rec, state.cases);
+    const judgment = deliverVerdict(caseFile, analyzePlea('', caseFile));
+    rec.resolved = {
+      verdict: judgment.verdict, tone: judgment.tone, convicted: judgment.convicted,
+      restitution: judgment.restitution, culpability: judgment.culpability,
+    };
+    btn.textContent = `Sentencing ${i + 1}/${pending.length}…`;
+    gavel(judgment.convicted ? 0.9 : 0.7);
+    gsap.fromTo(flash, { opacity: judgment.convicted ? 0.75 : 0.3 }, { opacity: 0, duration: 0.28 });
+    renderDocket();
+    await new Promise((r) => setTimeout(r, 150));
+  }
+
+  flash.remove();
+  btn.disabled = false;
+  btn.textContent = 'Mass Sentencing';
+  persist();
+  $('court-case').hidden = true;
+  $('court-empty').hidden = false;
+  $('court-empty').querySelector('h2').textContent = 'The docket is clear.';
+  $('court-empty').querySelector('p').textContent = 'All outstanding charges disposed of. See the record below.';
+  state.activeId = null;
+  renderDocket();
+  $('record-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
 $('btn-plead').addEventListener('click', () => enterPlea($('plea-input').value));
 $('btn-fifth').addEventListener('click', () => enterPlea(''));
 $('btn-guilty').addEventListener('click', () => enterPlea('Guilty, your honour.'));
@@ -374,6 +461,14 @@ $('cfg-test').addEventListener('click', async () => {
 
 /* -------------------------------------------------------------- start-up */
 restore();
+
+// ?demo=1 seeds the docket on load, so a shared link opens mid-trial rather
+// than on an empty courtroom.
+if (new URLSearchParams(location.search).get('demo') === '1' && !state.cases.length) {
+  const now = Date.now();
+  for (const d of DEMO_DOCKET) fileCharge(d.merchant, d.amount, new Date(now - d.hoursAgo * 36e5));
+}
+
 renderDocket();
 syncAiDot();
 if (state.cases.length) {

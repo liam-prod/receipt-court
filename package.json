@@ -1,0 +1,21 @@
+{
+  "name": "receipt-court",
+  "version": "1.0.0",
+  "private": true,
+  "description": "An expense tracker rebuilt as a criminal court. Every purchase is a defendant.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "canvas-confetti": "^1.9.3",
+    "chart.js": "^4.4.7",
+    "gsap": "^3.12.5",
+    "papaparse": "^5.4.1"
+  },
+  "devDependencies": {
+    "vite": "^6.0.7"
+  }
+}
