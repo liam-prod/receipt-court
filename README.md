@@ -22,9 +22,9 @@ Exhibits entered into evidence. The statutes have already made up their minds.
 
 ![](screenshots/02-exhibits.png)
 
-A plea that the court has heard before, dismantled in public.
+Counsel appointed. The plea is being typed badly, on purpose.
 
-![](screenshots/03-cross-examination.png)
+![](screenshots/03-public-defender.png)
 
 The stamp. The sentence. The gavel.
 
@@ -44,6 +44,16 @@ The defendant's criminal record, once the docket has been disposed of.
 6. **Verdict.** GUILTY, GUILTY WITH LENIENCY, NOT GUILTY, or CASE DISMISSED — with a sentence, a red stamp slam, and a gavel bang synthesised in Web Audio. No audio assets. The court does not license stock wood.
 
 You may waive the right to plead and request **mass sentencing**. The court will rule on the evidence alone and then show the criminal record.
+
+## Office of the Public Defender
+
+You have the right to an attorney. You are the attorney. You may, however, appoint one.
+
+**Appoint Public Defender** names counsel (seeded per case, so the same charge draws the same lawyer) and types a plea in real time — you watch it appear, character by character, which is most of the joke. The plea is deliberately mediocre. It leans on exactly the excuses `js/prosecutor.js` is built to demolish: on sale, deserved it, everyone else was ordering, long day, it will pay for itself. Appointing counsel usually makes things worse.
+
+On a genuine necessity, counsel stumbles into the correct argument, mostly by accident, having read the file once in the lift.
+
+![](screenshots/03-public-defender.png)
 
 ## Judging walkthrough
 
@@ -107,6 +117,20 @@ Node 22 via [mise](https://mise.jdx.dev). `npm run build` writes a static site t
 
 ## Optional AI prosecutor
 
-The court is fully offline by default. You never need this.
+The court is fully offline by default. You never need this. The procedural DA argues from the same exhibits either way.
 
-To retain a live DA: open **AI Prosecutor**, supply a Cursor API base URL, key, and model (defaults: `https://api.cursor.com/v0`, `claude-4.5-sonnet`), test the connection, and enable escalation. Credentials stay in this browser and are sent only to the endpoint you configured. If the model is unavailable, the procedural prosecutor already on screen continues; the source line reads `PROCEDURAL (AI UNAVAILABLE)`.
+Cursor's API sends no `Access-Control-Allow-Origin`, so a browser cannot call it from the deployed page. `scripts/da-proxy.py` is a CORS shim: standard library only, no pip. It forwards whatever the courtroom posts and adds the headers the browser insists on.
+
+```bash
+export CURSOR_API_KEY=sk-...
+python3 scripts/da-proxy.py
+```
+
+The proxy listens on `http://localhost:8788` (override with `DA_PROXY_PORT`) and upstreams to `https://api.cursor.com` (override with `CURSOR_API_BASE`). Then open **AI Prosecutor** in the app:
+
+- **Base URL** — `http://localhost:8788` (this is already the default)
+- **API key** — stored in `localStorage` only, never committed
+- **Model** — default `claude-4.5-sonnet`
+- **Transport** — Cursor background agent (`POST /v1/agents`, then poll) or OpenAI-compatible `/chat/completions`
+
+Enable escalation. The live model argues from the same case file; the procedural indictment is already on screen and stays if anything fails. The source line reads `PROCEDURAL (AI UNAVAILABLE)` when the live DA does not appear.

@@ -17,7 +17,7 @@ export const DEFAULT_CONFIG = {
   // proxy in scripts/da-proxy.py, which forwards to api.cursor.com.
   baseUrl: 'http://localhost:8788',
   apiKey: '',
-  model: 'claude-4.5-sonnet',
+  model: 'claude-sonnet-5',
   transport: 'cursor-agent',
   enabled: false,
 };
@@ -107,42 +107,64 @@ async function api(path, { method = 'GET', body } = {}) {
 }
 
 /**
- * Cursor's background-composer transport: launch an agent, poll until it
- * settles, then read its conversation. Slower than chat completions, so the
- * caller always renders the procedural argument first and swaps this in.
+ * Cursor's background-composer transport.
+ *
+ * Three quirks of this API shape the implementation:
+ *   1. POST /v1/agents creates the agent but never sends a response — the
+ *      connection just hangs. So we fire it, abort, and identify the agent we
+ *      just created by diffing the agent list before and after.
+ *   2. Status and conversation live under /v0, while creation and listing
+ *      live under /v1.
+ *   3. A run takes ~10-20s, so the caller always renders the procedural
+ *      argument first and swaps this in when it lands.
  */
+async function listAgentIds() {
+  const data = await api('/v1/agents');
+  return (data?.items || []).map((a) => a.id).filter(Boolean);
+}
+
 async function cursorAgent(messages, { timeoutMs = 120000, onProgress } = {}) {
   const cfg = loadConfig();
-  const launched = await api('/v1/agents', {
+  const before = new Set(await listAgentIds());
+
+  // Fire and abort: this endpoint creates the agent but never replies.
+  const controller = new AbortController();
+  const launch = fetch(cfg.baseUrl.replace(/\/+$/, '') + '/v1/agents', {
     method: 'POST',
-    body: { prompt: { text: flatten(messages) }, model: cfg.model },
-  });
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.apiKey}` },
+    body: JSON.stringify({ prompt: { text: flatten(messages) }, model: { id: cfg.model } }),
+    signal: controller.signal,
+  }).catch(() => null);
+  setTimeout(() => controller.abort(), 4000);
 
-  const id = launched?.id || launched?.agentId || launched?.agent?.id;
-  if (!id) {
-    const inline = extractText(launched);
-    if (inline) return inline;
-    throw new Error('Agent did not return an id');
-  }
-
+  // Identify the agent that appeared as a result of that call.
   const started = Date.now();
-  let delay = 1200;
-  while (Date.now() - started < timeoutMs) {
-    await sleep(delay);
-    delay = Math.min(delay * 1.25, 5000);
+  let id = null;
+  while (!id && Date.now() - started < 45000) {
+    await sleep(1500);
     onProgress?.(Math.round((Date.now() - started) / 1000));
+    let ids;
+    try { ids = await listAgentIds(); } catch { continue; }
+    id = ids.find((x) => !before.has(x)) || null;
+  }
+  await launch;
+  if (!id) throw new Error('Agent was never created');
 
-    const status = await api(`/v1/agents/${id}`);
-    const state = String(status?.status || status?.state || '').toUpperCase();
-    if (/ERROR|FAIL|CANCEL/.test(state)) throw new Error(`Agent ${state.toLowerCase()}`);
-    if (/FINISH|COMPLETE|DONE|SUCCEED/.test(state)) {
-      const inline = extractText(status);
-      if (inline) return inline;
-      const convo = await api(`/v1/agents/${id}/conversation`);
+  // Poll to completion, then read the transcript.
+  let delay = 1500;
+  while (Date.now() - started < timeoutMs) {
+    onProgress?.(Math.round((Date.now() - started) / 1000));
+    const status = await api(`/v0/agents/${id}`);
+    const state = String(status?.status || '').toUpperCase();
+    if (/ERROR|FAIL|CANCEL|EXPIRED/.test(state)) throw new Error(`Agent ${state.toLowerCase()}`);
+    if (/FINISH|COMPLETE|IDLE|DONE/.test(state)) {
+      const convo = await api(`/v0/agents/${id}/conversation`);
       const text = extractText(convo);
       if (text) return text;
       throw new Error('Agent finished but said nothing');
     }
+    await sleep(delay);
+    delay = Math.min(delay * 1.2, 4000);
   }
   throw new Error('Agent timed out');
 }
