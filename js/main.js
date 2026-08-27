@@ -379,6 +379,7 @@ $('btn-demo').addEventListener('click', () => {
 $('btn-purge').addEventListener('click', () => {
   if (!confirm('Expunge the entire record? Every conviction is forgotten. You will do it all again.')) return;
   state = { cases: [], activeId: null, trial: null };
+  localStorage.setItem('receipt-court:expunged', '1');
   persist();
   $('court-case').hidden = true;
   $('court-empty').hidden = false;
@@ -551,9 +552,10 @@ $('cfg-test').addEventListener('click', async () => {
 /* -------------------------------------------------------------- start-up */
 restore();
 
-// ?demo=1 seeds the docket on load, so a shared link opens mid-trial rather
-// than on an empty courtroom.
-if (new URLSearchParams(location.search).get('demo') === '1' && !state.cases.length) {
+// A first-time visitor gets a live docket rather than an empty courtroom —
+// the point of the product is unreadable from a blank screen. "Expunge
+// Record" clears it, and the choice is remembered.
+if (!state.cases.length && !localStorage.getItem('receipt-court:expunged')) {
   const now = Date.now();
   for (const d of [...DEMO_DOCKET].reverse()) fileCharge(d.merchant, d.amount, new Date(now - d.hoursAgo * 36e5));
 }
