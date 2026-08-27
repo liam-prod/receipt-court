@@ -230,3 +230,28 @@ main{display:grid; grid-template-columns:minmax(300px,360px) 1fr; gap:20px; padd
 .counsel-credit{font-size:11.5px; font-style:italic; color:var(--parchment-dim); margin-top:9px; font-family:var(--serif)}
 select{font-family:var(--sans); font-size:14px; color:var(--parchment); background:#16100b; border:1px solid var(--line); border-radius:3px; padding:9px 11px; width:100%}
 .modal-intro code{display:block; margin-top:8px; font-family:var(--mono); font-size:11px; color:var(--brass); background:#16100b; padding:7px 9px; border-radius:3px; border:1px solid var(--line)}
+
+/* ---------- ACE-ATTORNEY SPLASH ---------- */
+.splash-layer{position:fixed; inset:0; z-index:60; pointer-events:none; display:flex; align-items:center; justify-content:center; overflow:hidden}
+.splash-flash{position:absolute; inset:0; background:#fff; opacity:0}
+.splash-lines{position:absolute; inset:-25%; opacity:0;
+  background:repeating-conic-gradient(from 0deg at 50% 50%,
+    rgba(255,255,255,.24) 0deg 1.6deg, transparent 1.6deg 4.2deg);
+  mask-image:radial-gradient(circle at 50% 50%, transparent 16%, #000 46%);
+  -webkit-mask-image:radial-gradient(circle at 50% 50%, transparent 16%, #000 46%);
+}
+.splash-layer[data-tone="guilty"] .splash-lines{background:repeating-conic-gradient(from 0deg at 50% 50%,
+  rgba(255,90,80,.34) 0deg 1.6deg, transparent 1.6deg 4.2deg)}
+.splash-layer[data-tone="acquit"] .splash-lines{background:repeating-conic-gradient(from 0deg at 50% 50%,
+  rgba(140,240,175,.3) 0deg 1.6deg, transparent 1.6deg 4.2deg)}
+.splash-word{position:relative}
+.splash-word span{
+  display:block; font-family:var(--serif); font-weight:900; font-style:italic;
+  font-size:clamp(48px,13vw,168px); line-height:.95; letter-spacing:-.02em;
+  color:#fff; text-transform:uppercase; white-space:nowrap; opacity:0;
+  -webkit-text-stroke:5px #12100d;
+  paint-order:stroke fill;
+  text-shadow:0 7px 0 #12100d, 0 0 44px rgba(0,0,0,.7), 5px 5px 0 var(--guilty);
+}
+.splash-layer[data-tone="acquit"] .splash-word span{text-shadow:0 7px 0 #12100d, 0 0 44px rgba(0,0,0,.7), 5px 5px 0 var(--acquit)}
+.splash-layer[data-tone="objection"] .splash-word span{text-shadow:0 7px 0 #12100d, 0 0 44px rgba(0,0,0,.7), 5px 5px 0 var(--brass)}

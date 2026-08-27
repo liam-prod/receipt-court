@@ -12,6 +12,7 @@ import * as AI from './ai.js';
 import { parseStatement } from './import.js';
 import { renderRecord as renderCriminalRecord } from './record.js';
 import { generatePlea, counselName } from './defender.js';
+import { splash } from './splash.js';
 import confetti from 'canvas-confetti';
 import { gsap } from 'gsap';
 
@@ -260,6 +261,11 @@ async function enterPlea(text) {
   $('plea-input').disabled = true;
   ['btn-plead', 'btn-fifth', 'btn-guilty'].forEach((b) => { $(b).disabled = true; });
 
+  // The prosecution leaps to its feet before the objections are read out.
+  if (result.objections.some((o) => o.kind === 'bad')) {
+    await splash('Objection!', 'objection');
+  }
+
   $('phase-cross').hidden = false;
   $('objection-list').innerHTML = result.objections.length
     ? result.objections.map((o) => `
@@ -290,6 +296,10 @@ async function enterPlea(text) {
   }
 
   // Verdict.
+  const SPLASH_WORD = { guilty: 'Guilty!', lenient: 'Guilty!', acquit: 'Not Guilty!', dismiss: 'Dismissed!' };
+  await splash(SPLASH_WORD[judgment.tone] || judgment.verdict,
+    judgment.convicted ? 'guilty' : 'acquit');
+
   $('phase-verdict').hidden = false;
   const stamp = $('verdict-stamp');
   stamp.textContent = judgment.verdict;
