@@ -88,6 +88,28 @@ function gavel(strength = 1) {
   } catch { /* the court proceeds in silence */ }
 }
 
+/* --------------------------------------------------------------- prefetch */
+/**
+ * Cursor's agent API spends most of its latency spinning up, not generating,
+ * so the indictment for the next pending case is launched while the defendant
+ * is still reading the current one. By the time they hit "Next Case" the
+ * prosecution has usually already written its opening.
+ */
+const indictmentCache = new Map();
+
+function warmIndictment(rec) {
+  if (!rec || !AI.isLive() || indictmentCache.has(rec.id)) return;
+  const caseFile = buildCase(rec, state.cases);
+  indictmentCache.set(rec.id, AI.aiIndictment(caseFile).catch(() => null));
+}
+
+/** The next charge the defendant is going to face after this one. */
+function nextPending(afterId) {
+  const pending = state.cases.filter((c) => !c.resolved);
+  const idx = pending.findIndex((c) => c.id === afterId);
+  return idx === -1 ? pending[0] : pending[idx + 1];
+}
+
 /* ---------------------------------------------------------------- render */
 
 function caseNumber(rec) {
@@ -197,15 +219,21 @@ async function openCase(id) {
   $('prosecution-src').textContent = 'PROCEDURAL';
 
   if (AI.isLive()) {
-    $('prosecution-src').textContent = 'AI PROSECUTOR — PREPARING…';
+    const warmed = indictmentCache.get(id);
+    $('prosecution-src').textContent = warmed
+      ? 'AI PROSECUTOR — ARRIVING…'
+      : 'AI PROSECUTOR — PREPARING…';
     try {
-      const live = await AI.aiIndictment(caseFile, {
-        onProgress: (secs) => {
-          if (state.activeId === id) {
-            $('prosecution-src').textContent = `AI PROSECUTOR — PREPARING… ${secs}s`;
-          }
-        },
-      });
+      const live = warmed
+        ? await warmed
+        : await AI.aiIndictment(caseFile, {
+            onProgress: (secs) => {
+              if (state.activeId === id) {
+                $('prosecution-src').textContent = `AI PROSECUTOR — PREPARING… ${secs}s`;
+              }
+            },
+          });
+      if (!live) throw new Error('no indictment');
       if (state.activeId === id) {
         $('prosecution-text').textContent = live;
         $('prosecution-text').classList.add('ai');
@@ -217,6 +245,7 @@ async function openCase(id) {
   }
 
   renderDocket();
+  warmIndictment(nextPending(id));
   $('court-case').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 

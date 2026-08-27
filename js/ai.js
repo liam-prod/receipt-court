@@ -17,7 +17,7 @@ export const DEFAULT_CONFIG = {
   // proxy in scripts/da-proxy.py, which forwards to api.cursor.com.
   baseUrl: 'http://localhost:8788',
   apiKey: '',
-  model: 'claude-sonnet-5',
+  model: 'gemini-3.7-flash',
   transport: 'cursor-agent',
   enabled: false,
 };
