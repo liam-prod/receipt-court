@@ -225,3 +225,6 @@ main{display:grid; grid-template-columns:minmax(300px,360px) 1fr; gap:20px; padd
 
 /* ---------- MASS SENTENCING ---------- */
 .gavel-flash{position:fixed; inset:0; background:rgba(192,42,36,.16); pointer-events:none; z-index:30; opacity:0}
+
+/* ---------- PUBLIC DEFENDER ---------- */
+.counsel-credit{font-size:11.5px; font-style:italic; color:var(--parchment-dim); margin-top:9px; font-family:var(--serif)}

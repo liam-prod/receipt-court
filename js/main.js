@@ -11,6 +11,7 @@ import { composeIndictment, analyzePlea, deliverVerdict } from './prosecutor.js'
 import * as AI from './ai.js';
 import { parseStatement } from './import.js';
 import { renderRecord as renderCriminalRecord } from './record.js';
+import { generatePlea, counselName } from './defender.js';
 import confetti from 'canvas-confetti';
 import { gsap } from 'gsap';
 
@@ -186,6 +187,7 @@ async function openCase(id) {
   $('cross-text').hidden = true;
   $('plea-input').value = '';
   $('plea-input').disabled = false;
+  $('counsel-credit').hidden = true;
   ['btn-plead', 'btn-fifth', 'btn-guilty'].forEach((b) => { $(b).disabled = false; });
 
   // Indictment: procedural first so something is always on screen, then upgrade.
@@ -404,6 +406,39 @@ $('btn-tryall').addEventListener('click', async () => {
   state.activeId = null;
   renderDocket();
   $('record-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
+/**
+ * Appoint counsel. State-funded, overworked, and typing in real time so the
+ * defendant has to watch their own defence being assembled badly.
+ */
+$('btn-defender').addEventListener('click', async () => {
+  const trial = state.trial;
+  if (!trial || trial.phase === 'verdict') return;
+
+  const btn = $('btn-defender');
+  const input = $('plea-input');
+  const credit = $('counsel-credit');
+  btn.disabled = true;
+
+  credit.hidden = false;
+  credit.textContent = `Counsel appointed: ${counselName(trial.caseFile)}, Office of the Public Defender. Reviewing the file…`;
+  await new Promise((r) => setTimeout(r, 700));
+
+  const plea = generatePlea(trial.caseFile);
+  credit.textContent = `Counsel appointed: ${counselName(trial.caseFile)}, Office of the Public Defender.`;
+
+  // Typed out rather than pasted — watching it appear is most of the joke.
+  input.value = '';
+  for (let i = 0; i < plea.length; i++) {
+    input.value = plea.slice(0, i + 1);
+    input.scrollTop = input.scrollHeight;
+    if (plea[i] !== ' ') await new Promise((r) => setTimeout(r, 11));
+  }
+
+  await new Promise((r) => setTimeout(r, 550));
+  btn.disabled = false;
+  enterPlea(input.value);
 });
 
 $('btn-plead').addEventListener('click', () => enterPlea($('plea-input').value));

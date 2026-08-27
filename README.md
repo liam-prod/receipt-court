@@ -40,14 +40,24 @@ The defendant's criminal record, once the docket has been disposed of.
 2. **The culpability engine** scores the transaction 0–100 against the whole docket and enters exhibits into evidence.
 3. **The prosecution** delivers an indictment assembled from those exhibits.
 4. **You type a plea** in your own words. (You may also plead guilty, or the Fifth. The court draws inferences.)
-5. **The plea is cross-examined.** Nine bad-defence patterns make things worse. Seven good ones help. The rest is atmosphere.
+5. **The plea is cross-examined.** Nine bad-defence regexes make things worse. Seven good ones help. Silence, shouting, and a bare guilty plea are handled separately.
 6. **Verdict.** GUILTY, GUILTY WITH LENIENCY, NOT GUILTY, or CASE DISMISSED — with a sentence, a red stamp slam, and a gavel bang synthesised in Web Audio. No audio assets. The court does not license stock wood.
 
 You may waive the right to plead and request **mass sentencing**. The court will rule on the evidence alone and then show the criminal record.
 
+## Judging walkthrough
+
+Thirty seconds. No account, no key.
+
+1. Open [https://liam-prod.github.io/receipt-court/?demo=1](https://liam-prod.github.io/receipt-court/?demo=1). (`?demo=1` seeds only an empty docket — **Expunge Record** first if a prior session is still on file.) The first DoorDash charge is already in the dock.
+2. Read the exhibits. The statutes have already scored the case.
+3. In the plea box, type exactly: `It was on sale and I deserved it, everyone else was ordering too. I'd had a long day.`
+4. Hit **Enter Plea**. Four objections land — the bargain defence, “I deserved it”, peer pressure, and emotional duress — then the stamp.
+5. Click **Mass Sentencing**, confirm the waiver, and scroll to **The Defendant's Criminal Record**: convictions by category, culpability across the docket.
+
 ## Engineering
 
-Vanilla ES modules, built with Vite. The courtroom runs entirely in the browser. GSAP handles the stamp slam and the sentence being read aloud. Chart.js draws the record. canvas-confetti fires only on acquittal, which is rare enough to deserve it. Papa Parse reads the statement.
+Vanilla ES modules, built with Vite. The courtroom runs entirely in the browser. A CSS keyframe slams the stamp; GSAP drops the sentence in, line by line. Chart.js draws the record. canvas-confetti fires only when the defendant is not convicted. Papa Parse reads the statement.
 
 ### `js/culpability.js` — twelve statutes
 
@@ -69,7 +79,7 @@ Verdict bands: ≥72 GUILTY, ≥48 GUILTY WITH LENIENCY, ≥26 NOT GUILTY, other
 
 ### `js/ai.js` — optional Cursor API tier
 
-If credentials are supplied, the DA is escalated to a live model that argues from the same exhibits. Any failure falls back silently to the procedural prosecutor. The core loop cannot break mid-trial.
+If credentials are supplied, the DA is escalated to a live model that argues from the same exhibits (indictment and cross-examination). Any failure falls back to the procedural prosecutor already on screen; the source line notes when the live DA is unavailable. The core loop cannot break mid-trial.
 
 Keys live in `localStorage` only. They are never committed.
 
@@ -79,7 +89,7 @@ Sniffs columns across the three layouts banks actually ship: separate debit/cred
 
 ### `js/record.js` — Chart.js criminal record
 
-Convictions by category (doughnut) and culpability across the settled docket (bar). Rendered once cases are disposed of. The most egregious offence is named.
+Shown once at least one charge has been convicted. Doughnut of convictions by category; bar of culpability across every settled case. The most egregious offence is named.
 
 ### The gavel
 
@@ -99,4 +109,4 @@ Node 22 via [mise](https://mise.jdx.dev). `npm run build` writes a static site t
 
 The court is fully offline by default. You never need this.
 
-To retain a live DA: open **AI Prosecutor**, supply a Cursor API base URL, key, and model (defaults: `https://api.cursor.com/v0`, `claude-4.5-sonnet`), test the connection, and enable escalation. Credentials stay in this browser and are sent only to the endpoint you configured. If the model is unavailable, the procedural prosecutor continues without comment.
+To retain a live DA: open **AI Prosecutor**, supply a Cursor API base URL, key, and model (defaults: `https://api.cursor.com/v0`, `claude-4.5-sonnet`), test the connection, and enable escalation. Credentials stay in this browser and are sent only to the endpoint you configured. If the model is unavailable, the procedural prosecutor already on screen continues; the source line reads `PROCEDURAL (AI UNAVAILABLE)`.
