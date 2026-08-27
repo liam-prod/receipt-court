@@ -2,7 +2,7 @@
 
 An expense tracker rebuilt as a criminal court. Every purchase is a defendant. You have the right to an attorney. You are the attorney.
 
-Live: [https://liam-prod.github.io/receipt-court/?demo=1](https://liam-prod.github.io/receipt-court/?demo=1)
+Live: [https://liam-prod.github.io/receipt-court/](https://liam-prod.github.io/receipt-court/)
 
 ## The prompt
 
@@ -79,7 +79,7 @@ Ace Attorney, applied to a debit. `js/splash.js` slams **OBJECTION** across the 
 
 Thirty seconds. No account, no key.
 
-1. Open [https://liam-prod.github.io/receipt-court/?demo=1](https://liam-prod.github.io/receipt-court/?demo=1). (`?demo=1` seeds only an empty docket — **Expunge Record** first if a prior session is still on file.) The first DoorDash charge is already in the dock.
+1. Open [https://liam-prod.github.io/receipt-court/](https://liam-prod.github.io/receipt-court/). A first-time visitor is seeded with a live docket automatically; the first DoorDash charge is already in the dock. (**Expunge Record** clears it, and that choice is remembered.)
 2. Read the exhibits. The statutes have already scored the case.
 3. In the plea box, type exactly: `It was on sale and I deserved it, everyone else was ordering too. I'd had a long day.`
 4. Hit **Enter Plea**. Four objections land — the bargain defence, “I deserved it”, peer pressure, and emotional duress — then the stamp. Watch for the OBJECTION slam on the way in.
