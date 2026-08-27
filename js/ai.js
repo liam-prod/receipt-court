@@ -109,64 +109,126 @@ async function api(path, { method = 'GET', body } = {}) {
 /**
  * Cursor's background-composer transport.
  *
- * Three quirks of this API shape the implementation:
+ * The expensive part of this API is not generation, it is provisioning: every
+ * POST /v1/agents boots a cloud VM, which costs 60-90 seconds. But an agent
+ * stays alive at IDLE once it finishes, and POST /v0/agents/{id}/followup
+ * returns instantly and reuses it — an 8 second round trip instead of 87.
+ *
+ * So the court empanels exactly one agent, pays the boot cost once, and then
+ * puts every subsequent question to that same agent. The id is persisted, so
+ * a reload keeps the warm agent rather than provisioning a fresh one.
+ *
+ * Two further quirks:
  *   1. POST /v1/agents creates the agent but never sends a response — the
- *      connection just hangs. So we fire it, abort, and identify the agent we
- *      just created by diffing the agent list before and after.
- *   2. Status and conversation live under /v0, while creation and listing
- *      live under /v1.
- *   3. A run takes ~10-20s, so the caller always renders the procedural
- *      argument first and swaps this in when it lands.
+ *      connection hangs. We fire it, abort, and identify what we just made by
+ *      diffing the agent list.
+ *   2. Creation and listing live under /v1; status, followup and conversation
+ *      live under /v0.
  */
-async function listAgentIds() {
-  const data = await api('/v1/agents');
-  return (data?.items || []).map((a) => a.id).filter(Boolean);
+const AGENT_KEY = 'receipt-court:agent-id';
+
+async function conversation(id) {
+  const data = await api(`/v0/agents/${id}/conversation`);
+  return data?.messages || [];
 }
 
-async function cursorAgent(messages, { timeoutMs = 120000, onProgress } = {}) {
-  const cfg = loadConfig();
-  const before = new Set(await listAgentIds());
+const assistantCount = (messages) =>
+  messages.filter((m) => (m.type || m.role || '').includes('assistant')).length;
 
-  // Fire and abort: this endpoint creates the agent but never replies.
+/** Provision the court's agent. Slow, done once, and cached across reloads. */
+async function createAgent(onProgress) {
+  const cfg = loadConfig();
+  const before = new Set((await api('/v1/agents'))?.items?.map((a) => a.id) || []);
+
   const controller = new AbortController();
   const launch = fetch(cfg.baseUrl.replace(/\/+$/, '') + '/v1/agents', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.apiKey}` },
-    body: JSON.stringify({ prompt: { text: flatten(messages) }, model: { id: cfg.model } }),
+    body: JSON.stringify({
+      prompt: { text: 'You are being empanelled as prosecuting counsel. Reply with exactly: COURT IS IN SESSION' },
+      model: { id: cfg.model },
+    }),
     signal: controller.signal,
   }).catch(() => null);
   setTimeout(() => controller.abort(), 4000);
 
-  // Identify the agent that appeared as a result of that call.
   const started = Date.now();
   let id = null;
-  while (!id && Date.now() - started < 45000) {
+  while (!id && Date.now() - started < 60000) {
     await sleep(1500);
     onProgress?.(Math.round((Date.now() - started) / 1000));
-    let ids;
-    try { ids = await listAgentIds(); } catch { continue; }
-    id = ids.find((x) => !before.has(x)) || null;
+    try {
+      const ids = (await api('/v1/agents'))?.items?.map((a) => a.id) || [];
+      id = ids.find((x) => !before.has(x)) || null;
+    } catch { /* keep waiting */ }
   }
   await launch;
-  if (!id) throw new Error('Agent was never created');
+  if (!id) throw new Error('Could not empanel an agent');
 
-  // Poll to completion, then read the transcript.
-  let delay = 1500;
-  while (Date.now() - started < timeoutMs) {
-    onProgress?.(Math.round((Date.now() - started) / 1000));
-    const status = await api(`/v0/agents/${id}`);
-    const state = String(status?.status || '').toUpperCase();
-    if (/ERROR|FAIL|CANCEL|EXPIRED/.test(state)) throw new Error(`Agent ${state.toLowerCase()}`);
-    if (/FINISH|COMPLETE|IDLE|DONE/.test(state)) {
-      const convo = await api(`/v0/agents/${id}/conversation`);
-      const text = extractText(convo);
-      if (text) return text;
-      throw new Error('Agent finished but said nothing');
+  localStorage.setItem(AGENT_KEY, id);
+  return id;
+}
+
+let agentPromise = null;
+
+/** The court's standing agent, provisioned on demand and reused thereafter. */
+function getAgent(onProgress) {
+  if (agentPromise) return agentPromise;
+  const cached = localStorage.getItem(AGENT_KEY);
+  agentPromise = cached
+    ? api(`/v0/agents/${cached}`).then(() => cached).catch(() => {
+        localStorage.removeItem(AGENT_KEY);
+        return createAgent(onProgress);
+      })
+    : createAgent(onProgress);
+  agentPromise.catch(() => { agentPromise = null; });
+  return agentPromise;
+}
+
+/** Boot the agent early so the first real question does not pay for it. */
+export function warmAgent() {
+  if (isLive()) getAgent().catch(() => {});
+}
+
+// One agent means one conversation, so questions must be asked in turn.
+let queue = Promise.resolve();
+function enqueue(task) {
+  const run = queue.then(task, task);
+  queue = run.then(() => {}, () => {});
+  return run;
+}
+
+async function cursorAgent(messages, { timeoutMs = 180000, onProgress } = {}) {
+  return enqueue(async () => {
+    const id = await getAgent(onProgress);
+    const baseline = assistantCount(await conversation(id));
+
+    // followup returns immediately; the answer lands in the transcript later.
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        await api(`/v0/agents/${id}/followup`, {
+          method: 'POST',
+          body: { prompt: { text: flatten(messages) } },
+        });
+        break;
+      } catch (err) {
+        if (!/busy/i.test(err.message) || attempt === 3) throw err;
+        await sleep(2500);
+      }
     }
-    await sleep(delay);
-    delay = Math.min(delay * 1.2, 4000);
-  }
-  throw new Error('Agent timed out');
+
+    const started = Date.now();
+    while (Date.now() - started < timeoutMs) {
+      await sleep(1600);
+      onProgress?.(Math.round((Date.now() - started) / 1000));
+      const messagesNow = await conversation(id);
+      if (assistantCount(messagesNow) > baseline) {
+        const text = extractText({ messages: messagesNow });
+        if (text) return text;
+      }
+    }
+    throw new Error('The prosecution is still deliberating');
+  });
 }
 
 async function chat(messages, { maxTokens = 400 } = {}) {

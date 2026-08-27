@@ -517,6 +517,7 @@ function readCfg() {
 $('cfg-save').addEventListener('click', () => {
   AI.saveConfig(readCfg());
   syncAiDot();
+  AI.warmAgent();
   $('ai-modal').hidden = true;
 });
 $('cfg-test').addEventListener('click', async () => {
