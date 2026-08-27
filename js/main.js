@@ -199,7 +199,13 @@ async function openCase(id) {
   if (AI.isLive()) {
     $('prosecution-src').textContent = 'AI PROSECUTOR — PREPARING…';
     try {
-      const live = await AI.aiIndictment(caseFile);
+      const live = await AI.aiIndictment(caseFile, {
+        onProgress: (secs) => {
+          if (state.activeId === id) {
+            $('prosecution-src').textContent = `AI PROSECUTOR — PREPARING… ${secs}s`;
+          }
+        },
+      });
       if (state.activeId === id) {
         $('prosecution-text').textContent = live;
         $('prosecution-text').classList.add('ai');
@@ -244,7 +250,9 @@ async function enterPlea(text) {
     box.classList.add('thinking');
     box.textContent = 'The prosecution rises…';
     try {
-      const live = await AI.aiCrossExamine(caseFile, result.plea, result.objections);
+      const live = await AI.aiCrossExamine(caseFile, result.plea, result.objections, {
+        onProgress: (secs) => { box.textContent = `The prosecution rises… (${secs}s)`; },
+      });
       box.classList.remove('thinking');
       box.textContent = live;
     } catch {
@@ -459,6 +467,7 @@ $('btn-ai').addEventListener('click', () => {
   $('cfg-base').value = cfg.baseUrl;
   $('cfg-key').value = cfg.apiKey;
   $('cfg-model').value = cfg.model;
+  $('cfg-transport').value = cfg.transport || 'cursor-agent';
   $('cfg-enabled').checked = cfg.enabled;
   $('cfg-status').textContent = ''; $('cfg-status').className = 'cfg-status';
   $('ai-modal').hidden = false;
@@ -472,6 +481,7 @@ function readCfg() {
     baseUrl: $('cfg-base').value.trim() || AI.DEFAULT_CONFIG.baseUrl,
     apiKey: $('cfg-key').value.trim(),
     model: $('cfg-model').value.trim() || AI.DEFAULT_CONFIG.model,
+    transport: $('cfg-transport').value,
     enabled: $('cfg-enabled').checked,
   };
 }
@@ -485,7 +495,9 @@ $('cfg-test').addEventListener('click', async () => {
   const s = $('cfg-status');
   s.className = 'cfg-status'; s.textContent = 'Approaching the bench…';
   try {
-    const reply = await AI.testConnection();
+    const reply = await AI.testConnection((secs) => {
+      s.textContent = `Agent working… ${secs}s`;
+    });
     s.className = 'cfg-status ok';
     s.textContent = '✓ ' + reply.slice(0, 60);
     $('cfg-enabled').checked = true;

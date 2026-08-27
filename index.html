@@ -177,10 +177,18 @@
       Supply Cursor API credentials to escalate the prosecution to a live model
       that argues from the same exhibits. Credentials are stored only in this
       browser and are never sent anywhere but your configured endpoint.
+      Cursor's API sends no CORS headers, so point Base URL at the local proxy:
+      <code>CURSOR_API_KEY=... python3 scripts/da-proxy.py</code>
     </p>
     <label class="field"><span>Base URL</span><input id="cfg-base" type="text" placeholder="https://api.cursor.com/v0" /></label>
     <label class="field"><span>API Key</span><input id="cfg-key" type="password" placeholder="sk-..." /></label>
     <label class="field"><span>Model</span><input id="cfg-model" type="text" placeholder="claude-4.5-sonnet" /></label>
+    <label class="field"><span>Transport</span>
+      <select id="cfg-transport">
+        <option value="cursor-agent">Cursor background agent (launch &amp; poll)</option>
+        <option value="chat">OpenAI-compatible /chat/completions</option>
+      </select>
+    </label>
     <label class="check"><input id="cfg-enabled" type="checkbox" /> <span>Escalate prosecution to AI</span></label>
     <div id="cfg-status" class="cfg-status"></div>
     <div class="modal-actions">

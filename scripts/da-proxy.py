@@ -12,7 +12,7 @@ Standard library only — no pip install, no dependencies.
     python3 scripts/da-proxy.py
 
 Then in the app's AI Prosecutor panel set Base URL to http://localhost:8788/v0
-(the key field can be left as anything; the proxy injects the real one).
+(the key field can be left blank; the proxy injects the real one).
 """
 import http.server
 import json
@@ -22,7 +22,7 @@ import urllib.error
 import urllib.request
 
 PORT = int(os.environ.get("DA_PROXY_PORT", "8788"))
-UPSTREAM = os.environ.get("CURSOR_API_BASE", "https://api.cursor.com/v0").rstrip("/")
+UPSTREAM = os.environ.get("CURSOR_API_BASE", "https://api.cursor.com").rstrip("/")
 API_KEY = os.environ.get("CURSOR_API_KEY", "")
 
 
@@ -30,28 +30,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def _cors(self):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
-        self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 
     def do_OPTIONS(self):
         self.send_response(204)
         self._cors()
         self.end_headers()
 
-    def do_POST(self):
-        body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
-        # Strip the /v0 prefix the browser sends; UPSTREAM already carries it.
-        path = self.path
-        for prefix in ("/v0", "/v1"):
-            if path.startswith(prefix):
-                path = path[len(prefix):]
-                break
+    def do_GET(self):
+        self._forward("GET", None)
 
-        # Prefer the server-side key so the browser never holds a real secret.
+    def do_POST(self):
+        length = int(self.headers.get("Content-Length", 0))
+        self._forward("POST", self.rfile.read(length) if length else None)
+
+    def _forward(self, method, body):
+        # The browser addresses the proxy exactly as it would address Cursor,
+        # so the path is passed through untouched.
         key = API_KEY or (self.headers.get("Authorization", "") or "").replace("Bearer ", "")
         req = urllib.request.Request(
-            UPSTREAM + path,
+            UPSTREAM + self.path,
             data=body,
-            method="POST",
+            method=method,
             headers={"Content-Type": "application/json", "Authorization": f"Bearer {key}"},
         )
         try:
@@ -79,7 +79,7 @@ if __name__ == "__main__":
     if not API_KEY:
         print("! CURSOR_API_KEY is not set — the proxy will forward whatever the browser sends.")
     print(f"District Attorney proxy listening on http://localhost:{PORT}  ->  {UPSTREAM}")
-    print(f"Set the app's Base URL to: http://localhost:{PORT}/v0")
+    print(f"Set the app's Base URL to: http://localhost:{PORT}")
     socketserver.TCPServer.allow_reuse_address = True
     with socketserver.TCPServer(("127.0.0.1", PORT), Handler) as httpd:
         httpd.serve_forever()

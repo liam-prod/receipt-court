@@ -13,9 +13,12 @@
 const STORE_KEY = 'receipt-court:ai-config';
 
 export const DEFAULT_CONFIG = {
-  baseUrl: 'https://api.cursor.com/v0',
+  // Cursor's API sends no CORS headers, so the browser talks to the local
+  // proxy in scripts/da-proxy.py, which forwards to api.cursor.com.
+  baseUrl: 'http://localhost:8788',
   apiKey: '',
   model: 'claude-4.5-sonnet',
+  transport: 'cursor-agent',
   enabled: false,
 };
 
@@ -62,6 +65,88 @@ ${exhibits || '- None. The State is reaching.'}
 Deliver the prosecution's opening statement.`;
 }
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** Flatten a chat-style message list into one prompt for the agent API. */
+function flatten(messages) {
+  return messages.map((m) => (m.role === 'system' ? m.content : m.content)).join('\n\n');
+}
+
+/** Dig a text answer out of whatever shape the endpoint hands back. */
+function extractText(data) {
+  const direct =
+    data?.choices?.[0]?.message?.content ??
+    data?.content?.[0]?.text ??
+    data?.text ??
+    data?.result ??
+    data?.output;
+  if (typeof direct === 'string' && direct.trim()) return direct.trim();
+
+  // Agent conversations arrive as a message list; take the last assistant turn.
+  const messages = data?.messages || data?.conversation || [];
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    const role = m.role || m.type || '';
+    if (/user|human/i.test(role)) continue;
+    const text = m.text ?? m.content ?? m.message;
+    if (typeof text === 'string' && text.trim()) return text.trim();
+  }
+  return '';
+}
+
+async function api(path, { method = 'GET', body } = {}) {
+  const cfg = loadConfig();
+  const res = await fetch(cfg.baseUrl.replace(/\/+$/, '') + path, {
+    method,
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.apiKey}` },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error?.message || data?.message || `HTTP ${res.status}`);
+  return data;
+}
+
+/**
+ * Cursor's background-composer transport: launch an agent, poll until it
+ * settles, then read its conversation. Slower than chat completions, so the
+ * caller always renders the procedural argument first and swaps this in.
+ */
+async function cursorAgent(messages, { timeoutMs = 120000, onProgress } = {}) {
+  const cfg = loadConfig();
+  const launched = await api('/v1/agents', {
+    method: 'POST',
+    body: { prompt: { text: flatten(messages) }, model: cfg.model },
+  });
+
+  const id = launched?.id || launched?.agentId || launched?.agent?.id;
+  if (!id) {
+    const inline = extractText(launched);
+    if (inline) return inline;
+    throw new Error('Agent did not return an id');
+  }
+
+  const started = Date.now();
+  let delay = 1200;
+  while (Date.now() - started < timeoutMs) {
+    await sleep(delay);
+    delay = Math.min(delay * 1.25, 5000);
+    onProgress?.(Math.round((Date.now() - started) / 1000));
+
+    const status = await api(`/v1/agents/${id}`);
+    const state = String(status?.status || status?.state || '').toUpperCase();
+    if (/ERROR|FAIL|CANCEL/.test(state)) throw new Error(`Agent ${state.toLowerCase()}`);
+    if (/FINISH|COMPLETE|DONE|SUCCEED/.test(state)) {
+      const inline = extractText(status);
+      if (inline) return inline;
+      const convo = await api(`/v1/agents/${id}/conversation`);
+      const text = extractText(convo);
+      if (text) return text;
+      throw new Error('Agent finished but said nothing');
+    }
+  }
+  throw new Error('Agent timed out');
+}
+
 async function chat(messages, { maxTokens = 400 } = {}) {
   const cfg = loadConfig();
   const url = cfg.baseUrl.replace(/\/+$/, '') + '/chat/completions';
@@ -87,12 +172,17 @@ async function chat(messages, { maxTokens = 400 } = {}) {
   return text.trim();
 }
 
+/** Route to whichever transport the defendant has configured. */
+function ask(messages, opts = {}) {
+  return loadConfig().transport === 'chat' ? chat(messages, opts) : cursorAgent(messages, opts);
+}
+
 /** Live indictment. Throws on any failure — callers fall back to procedural. */
-export function aiIndictment(caseFile) {
-  return chat([
+export function aiIndictment(caseFile, opts) {
+  return ask([
     { role: 'system', content: SYSTEM_PROMPT },
     { role: 'user', content: brief(caseFile) },
-  ]);
+  ], opts);
 }
 
 /** Live cross-examination of the defendant's plea. */
@@ -109,14 +199,11 @@ PATTERNS THE COURT'S ANALYSER FLAGGED:
 ${raised}
 
 Deliver a 2-3 sentence cross-examination that dismantles this specific plea. Quote the defendant's own words back at them at least once.` },
-  ], { maxTokens: 300 });
+  ], { maxTokens: 300, ...opts });
 }
 
 /** One-line connectivity check for the settings panel. */
-export async function testConnection() {
-  const text = await chat(
-    [{ role: 'user', content: 'Reply with exactly: COURT IS IN SESSION' }],
-    { maxTokens: 32 }
-  );
-  return text;
+export async function testConnection(onProgress) {
+  return ask([{ role: 'user', content: 'Reply with exactly: COURT IS IN SESSION' }],
+    { maxTokens: 32, onProgress });
 }
