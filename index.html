@@ -1,1 +1,168 @@
-placeholder
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>RECEIPT COURT — Your purchases will be prosecuted</title>
+<meta name="description" content="An expense tracker rebuilt as a criminal court. Every purchase is a defendant. You have the right to an attorney. You are the attorney." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+
+<header class="bench">
+  <div class="crest">
+    <svg viewBox="0 0 64 64" class="seal" aria-hidden="true">
+      <circle cx="32" cy="32" r="30" fill="none" stroke="currentColor" stroke-width="1.5"/>
+      <circle cx="32" cy="32" r="26" fill="none" stroke="currentColor" stroke-width="0.6"/>
+      <path d="M32 14v34M20 22h24M20 22l-6 13h12zM44 22l-6 13h12z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M24 50h16" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+    </svg>
+    <div class="crest-text">
+      <h1>Receipt Court</h1>
+      <p>In the matter of your discretionary spending</p>
+    </div>
+  </div>
+
+  <div class="record-strip">
+    <div class="stat"><span id="stat-convictions">0</span><label>Convictions</label></div>
+    <div class="stat"><span id="stat-restitution">$0</span><label>Restitution Owed</label></div>
+    <div class="stat"><span id="stat-rate">—</span><label>Conviction Rate</label></div>
+  </div>
+
+  <div class="bench-actions">
+    <button id="btn-demo" class="btn ghost">Load Demo Docket</button>
+    <button id="btn-ai" class="btn ghost"><span class="ai-dot" id="ai-dot"></span> AI Prosecutor</button>
+    <button id="btn-purge" class="btn ghost danger">Expunge Record</button>
+  </div>
+</header>
+
+<main>
+  <!-- ================= LEFT: THE DOCKET ================= -->
+  <aside class="docket panel">
+    <h2 class="panel-title">The Docket</h2>
+
+    <form id="charge-form" class="charge-form">
+      <label class="field">
+        <span>Merchant</span>
+        <input id="in-merchant" type="text" placeholder="DoorDash" autocomplete="off" required />
+      </label>
+      <label class="field amount">
+        <span>Amount</span>
+        <input id="in-amount" type="number" step="0.01" min="0.01" placeholder="47.83" required />
+      </label>
+      <label class="field">
+        <span>When</span>
+        <input id="in-when" type="datetime-local" />
+      </label>
+      <button class="btn primary" type="submit">File Charges</button>
+    </form>
+
+    <div class="docket-head">
+      <span>Pending Cases</span>
+      <span id="docket-count" class="count">0</span>
+    </div>
+    <ul id="docket-list" class="docket-list"></ul>
+
+    <div class="most-wanted">
+      <h3>Most Wanted</h3>
+      <ol id="most-wanted-list"><li class="empty">No convictions on file.</li></ol>
+    </div>
+  </aside>
+
+  <!-- ================= RIGHT: THE COURTROOM ================= -->
+  <section class="courtroom panel" id="courtroom">
+
+    <div id="court-empty" class="court-empty">
+      <svg viewBox="0 0 64 64" class="gavel-idle" aria-hidden="true">
+        <rect x="8" y="46" width="48" height="6" rx="3" fill="currentColor" opacity=".35"/>
+        <g transform="rotate(-32 32 30)">
+          <rect x="18" y="16" width="28" height="13" rx="3" fill="currentColor"/>
+          <rect x="30" y="29" width="5" height="22" rx="2.5" fill="currentColor" opacity=".7"/>
+        </g>
+      </svg>
+      <h2>Court is in session.</h2>
+      <p>File a charge, or load the demo docket, to begin proceedings.</p>
+    </div>
+
+    <article id="court-case" class="court-case" hidden>
+      <div class="case-head">
+        <div class="case-no" id="case-no">CASE No. —</div>
+        <h2 class="case-title" id="case-title">Your Future Self <em>v.</em> —</h2>
+        <div class="case-sub" id="case-sub"></div>
+      </div>
+
+      <div class="meter-wrap">
+        <div class="meter-label"><span>Culpability</span><span id="meter-value">0</span></div>
+        <div class="meter"><div class="meter-fill" id="meter-fill"></div></div>
+      </div>
+
+      <div class="phase" id="phase-exhibits">
+        <h3 class="phase-title">Exhibits Entered Into Evidence</h3>
+        <ul id="exhibit-list" class="exhibits"></ul>
+      </div>
+
+      <div class="phase" id="phase-prosecution">
+        <h3 class="phase-title">The Prosecution <span class="src" id="prosecution-src"></span></h3>
+        <blockquote class="statement" id="prosecution-text"></blockquote>
+      </div>
+
+      <div class="phase" id="phase-defence">
+        <h3 class="phase-title">The Defence <span class="hint">— that's you</span></h3>
+        <textarea id="plea-input" rows="3" placeholder="Explain yourself. (The court has heard every excuse. Some of them make it worse.)"></textarea>
+        <div class="plea-actions">
+          <button id="btn-plead" class="btn primary">Enter Plea</button>
+          <button id="btn-fifth" class="btn ghost">Plead the Fifth</button>
+          <button id="btn-guilty" class="btn ghost">Plead Guilty</button>
+        </div>
+      </div>
+
+      <div class="phase" id="phase-cross" hidden>
+        <h3 class="phase-title">Cross-Examination</h3>
+        <ul id="objection-list" class="objections"></ul>
+        <blockquote class="statement ai" id="cross-text" hidden></blockquote>
+      </div>
+
+      <div class="phase verdict-phase" id="phase-verdict" hidden>
+        <div class="verdict-card" id="verdict-card">
+          <div class="stamp" id="verdict-stamp">GUILTY</div>
+          <div class="verdict-body">
+            <h3>The Sentence</h3>
+            <ul id="sentence-list" class="sentence"></ul>
+            <p class="remark" id="verdict-remark"></p>
+          </div>
+        </div>
+        <button id="btn-next" class="btn primary wide">Next Case →</button>
+      </div>
+    </article>
+  </section>
+</main>
+
+<!-- ================= AI SETTINGS ================= -->
+<div class="modal-backdrop" id="ai-modal" hidden>
+  <div class="modal panel">
+    <h2 class="panel-title">Retain an AI Prosecutor</h2>
+    <p class="modal-intro">
+      The court runs a full procedural prosecutor offline — you never need this.
+      Supply Cursor API credentials to escalate the prosecution to a live model
+      that argues from the same exhibits. Credentials are stored only in this
+      browser and are never sent anywhere but your configured endpoint.
+    </p>
+    <label class="field"><span>Base URL</span><input id="cfg-base" type="text" placeholder="https://api.cursor.com/v0" /></label>
+    <label class="field"><span>API Key</span><input id="cfg-key" type="password" placeholder="sk-..." /></label>
+    <label class="field"><span>Model</span><input id="cfg-model" type="text" placeholder="claude-4.5-sonnet" /></label>
+    <label class="check"><input id="cfg-enabled" type="checkbox" /> <span>Escalate prosecution to AI</span></label>
+    <div id="cfg-status" class="cfg-status"></div>
+    <div class="modal-actions">
+      <button id="cfg-test" class="btn ghost">Test Connection</button>
+      <button id="cfg-save" class="btn primary">Save</button>
+      <button id="cfg-close" class="btn ghost">Close</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="./js/main.js"></script>
+</body>
+</html>
