@@ -8,10 +8,11 @@
  */
 
 import { seededRandom, clamp, money } from './culpability.js';
+import * as CORPUS from './corpus.js';
 
 const pick = (rng, arr) => arr[Math.floor(rng() * arr.length) % arr.length];
 
-const OPENERS = [
+const OPENERS = [...CORPUS.OPENERS,
   'Your Honour, the facts are not in dispute.',
   'The prosecution will be brief, because the evidence is not complicated.',
   'Ladies and gentlemen of the jury, we have all been here before.',
@@ -19,7 +20,7 @@ const OPENERS = [
   'The State calls this exhibit what it is.',
 ];
 
-const CLOSERS = [
+const CLOSERS = [...CORPUS.CLOSERS,
   'The prosecution rests, exhausted.',
   'We ask the court to convict, and to do so briskly.',
   'The State seeks the maximum penalty the defendant will actually comply with.',
@@ -193,20 +194,20 @@ const SENTENCE_TEMPLATES = {
 };
 
 const REMARKS = {
-  guilty: [
+  guilty: [...CORPUS.REMARKS_GUILTY,
     'The court finds the defendant knew exactly what they were doing, and did it anyway.',
     'This was not a lapse. This was a decision, made with a thumb.',
     'The defendant will now watch the money leave a second time, in their imagination.',
   ],
-  lenient: [
+  lenient: [...CORPUS.REMARKS_GUILTY.slice(0, 8),
     'The court finds fault, but recognises a human being under considerable pressure.',
     'Guilty, but the court has seen worse this week. In this same docket.',
   ],
-  acquit: [
+  acquit: [...CORPUS.REMARKS_ACQUIT,
     'The State failed to meet its burden. Barely.',
     'The court finds this was, on balance, a reasonable thing for a person to do.',
   ],
-  dismiss: [
+  dismiss: [...CORPUS.REMARKS_ACQUIT.slice(0, 6),
     'There is no case here. Next.',
     'The court thanks the defendant for a rare moment of financial dignity.',
   ],
