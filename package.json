@@ -16,6 +16,7 @@
     "papaparse": "^5.4.1"
   },
   "devDependencies": {
+    "playwright-core": "^1.62.1",
     "vite": "^6.0.7"
   }
 }

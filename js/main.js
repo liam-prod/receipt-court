@@ -316,8 +316,10 @@ $('charge-form').addEventListener('submit', (e) => {
 });
 
 $('btn-demo').addEventListener('click', () => {
+  // Seeded oldest-first so that after unshifting, the most recent (and most
+  // incriminating) charge sits at the top of the docket.
   const now = Date.now();
-  for (const d of DEMO_DOCKET) {
+  for (const d of [...DEMO_DOCKET].reverse()) {
     fileCharge(d.merchant, d.amount, new Date(now - d.hoursAgo * 3600 * 1000));
   }
   renderDocket();
@@ -466,7 +468,7 @@ restore();
 // than on an empty courtroom.
 if (new URLSearchParams(location.search).get('demo') === '1' && !state.cases.length) {
   const now = Date.now();
-  for (const d of DEMO_DOCKET) fileCharge(d.merchant, d.amount, new Date(now - d.hoursAgo * 36e5));
+  for (const d of [...DEMO_DOCKET].reverse()) fileCharge(d.merchant, d.amount, new Date(now - d.hoursAgo * 36e5));
 }
 
 renderDocket();
