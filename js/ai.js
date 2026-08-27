@@ -34,6 +34,27 @@ export function saveConfig(cfg) {
   localStorage.setItem(STORE_KEY, JSON.stringify(cfg));
 }
 
+/**
+ * Zero-config detection: if the local DA proxy is listening, retain it
+ * automatically. Saves the defendant from typing a base URL into a form
+ * before the prosecution can do anything interesting.
+ */
+export async function autodetect() {
+  const saved = loadConfig();
+  if (saved.enabled && saved.apiKey) return saved;
+  try {
+    const res = await fetch(DEFAULT_CONFIG.baseUrl + '/v0/me', {
+      signal: AbortSignal.timeout(2500),
+    });
+    if (!res.ok) return null;
+    const cfg = { ...DEFAULT_CONFIG, apiKey: 'via-proxy', enabled: true };
+    saveConfig(cfg);
+    return cfg;
+  } catch {
+    return null;   // no proxy: the procedural prosecutor handles it
+  }
+}
+
 export function isLive() {
   const c = loadConfig();
   return Boolean(c.enabled && c.apiKey && c.baseUrl);
